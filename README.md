@@ -30,7 +30,8 @@ This succeeds - all conditions are met.  Notice the consumed writes, and re-scan
 ```balance_transfer.sh 4510ba8a-518b-4701-88b5-3db78e618f71 transfer2-underfunded```
 
 This fails - the condition is not met on the first action, which is to verify
-adequate funding in the source account.  Writes are consumed anyway.
+adequate funding in the source account.  Writes are consumed anyway - sadly the information is
+not returned, but you can confirm this by looking at CloudWatch metrics.
 
 3.  Attempt the same transfer again using the same idempotency key.
 
@@ -59,10 +60,10 @@ and did not involve the idempotency token.  Idempotency tokens are only tracked 
 This is a successful transfer - see the writes consumed, balances updated
 and new transaction recorded.  But what if our client never received the 200
 response from DynamoDB saying the transaction was committed?  It must retry, which could
-be a problem - the exception would be raised due to seeing an existing *txid*,
-preventing a repeat transfer, but to the client it still seems like a fail.
-No way to know if this is because of retry in the short term or if this is a
-genuine *txid* clash from separate balance transfer requests.  This sounds messy.
+be a problem - the exception would be raised due to seeing an existing **txid**,
+preventing a repeat transfer, but the client will need to recognize this and understand
+that this transaction was already processed. Also, depending on this stored **txid** for
+a condition failure will still consume significant write units. Not ideal.
 
 
 6.  Repeat the transfer
@@ -77,7 +78,7 @@ consumed - but look carefully.  It is read units.  No writes were made,
 but read units are consumed in checking and confirming that the transaction was
 in fact already successfully committed.  This adds a great deal of resilience
 and integrity.  Clients can retry and ascertain the exact status of any
-transaction.
+transaction - at low cost. Hooray for that token!
 
 ## Cleanup
 You can delete your tables if desired.
